@@ -200,9 +200,9 @@ export default function OrderForm() {
     setExportProgress({ type, pct: 0 })
     try {
       if (type === 'excel') {
-        exportExcel(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
+        await exportExcel(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
       } else {
-        exportPdf(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
+        await exportPdf(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
       }
       toast.success(`${type.toUpperCase()} yuklab olindi`)
     } catch {

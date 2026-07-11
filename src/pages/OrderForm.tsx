@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom'
 import { Plus, Trash2, FileSpreadsheet, FileText, Save, ArrowLeft, Package, Layers, Share2 } from 'lucide-react'
 import SpeechInput from '../components/SpeechInput'
 import { ordersApi, productsApi } from '../lib/api'
+import { exportExcel, exportPdf } from '../lib/export'
 import { Product, OrderItem, Order } from '../types'
 import toast from 'react-hot-toast'
 import ProductPicker from '../components/ProductPicker'
@@ -187,23 +188,23 @@ export default function OrderForm() {
       toast.error("Avval zayavkani saqlang")
       return
     }
+    const validItems = items.filter((it) => it.name.trim())
+    if (validItems.length === 0) {
+      toast.error('Mahsulotlar topilmadi')
+      return
+    }
     const eid = orderId || Number(id)
+    const dateStr = new Date().toLocaleDateString('ru-RU', {
+      day: '2-digit', month: '2-digit', year: 'numeric',
+    })
     setExportProgress({ type, pct: 0 })
     try {
-      const res = type === 'excel'
-        ? await ordersApi.exportExcel(eid, (pct) => setExportProgress({ type, pct }))
-        : await ordersApi.exportPdf(eid, (pct) => setExportProgress({ type, pct }))
-      const mime = type === 'excel'
-        ? 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
-        : 'application/pdf'
-      const ext = type === 'excel' ? 'xlsx' : 'pdf'
-      const url = URL.createObjectURL(new Blob([res.data], { type: mime }))
-      const a = document.createElement('a')
-      a.href = url
-      a.download = `zayavka_${eid}.${ext}`
-      a.click()
-      URL.revokeObjectURL(url)
-      toast.success(`${ext.toUpperCase()} yuklab olindi`)
+      if (type === 'excel') {
+        exportExcel(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
+      } else {
+        exportPdf(eid, dateStr, clientName, clientPhone, validItems, (pct) => setExportProgress({ type, pct }))
+      }
+      toast.success(`${type.toUpperCase()} yuklab olindi`)
     } catch {
       toast.error('Export xatosi')
     } finally {

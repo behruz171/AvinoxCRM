@@ -3,6 +3,7 @@ import { useParams } from 'react-router-dom'
 import { Package, ArrowLeft, ClipboardList } from 'lucide-react'
 import { ordersApi } from '../lib/api'
 import { Order } from '../types'
+import type { AxiosResponse } from 'axios'
 
 function fmt(n: number | string) {
   return Number(n).toLocaleString('ru-RU')
@@ -18,7 +19,7 @@ export default function OrderView() {
     if (!id) return
     setLoading(true)
     ordersApi.getPublic(Number(id))
-      .then((res) => setOrder(res.data))
+      .then((res: AxiosResponse<Order>) => setOrder(res.data))
       .catch(() => setError('Zayavka topilmadi'))
       .finally(() => setLoading(false))
   }, [id])

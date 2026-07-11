@@ -63,6 +63,8 @@ export const productsApi = {
   get: (id: number) => api.get(`/products/${id}/`),
 }
 
+const publicApi = axios.create({ baseURL: BASE_URL })
+
 // Orders
 export const ordersApi = {
   list: () => api.get('/orders/'),
@@ -70,6 +72,19 @@ export const ordersApi = {
   update: (id: number, data: object) => api.put(`/orders/${id}/`, data),
   delete: (id: number) => api.delete(`/orders/${id}/`),
   get: (id: number) => api.get(`/orders/${id}/`),
-  exportExcel: (id: number) => api.get(`/orders/${id}/export/excel/`, { responseType: 'blob' }),
-  exportPdf: (id: number) => api.get(`/orders/${id}/export/pdf/`, { responseType: 'blob' }),
+  getPublic: (id: number) => publicApi.get(`/orders/${id}/view/`),
+  exportExcel: (id: number, onProgress?: (pct: number) => void) =>
+    api.get(`/orders/${id}/export/excel/`, {
+      responseType: 'blob',
+      onDownloadProgress: onProgress ? (e: any) => {
+        if (e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      } : undefined,
+    }),
+  exportPdf: (id: number, onProgress?: (pct: number) => void) =>
+    api.get(`/orders/${id}/export/pdf/`, {
+      responseType: 'blob',
+      onDownloadProgress: onProgress ? (e: any) => {
+        if (e.total) onProgress(Math.round((e.loaded / e.total) * 100))
+      } : undefined,
+    }),
 }

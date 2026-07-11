@@ -1,6 +1,6 @@
 import axios from 'axios'
 
-const BASE_URL = 'http://ordercrm.pythonanywhere.com/api'
+const BASE_URL = 'https://ordercrm.pythonanywhere.com/api'
 
 const api = axios.create({
   baseURL: BASE_URL,

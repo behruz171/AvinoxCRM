@@ -1,5 +1,5 @@
-import { useState, useEffect, FormEvent, useRef } from 'react'
-import { X, Upload } from 'lucide-react'
+import { useState, useEffect, FormEvent, useRef, useCallback } from 'react'
+import { X, Upload, Clipboard, ExternalLink } from 'lucide-react'
 import { productsApi, categoriesApi } from '../lib/api'
 import { Product, Category } from '../types'
 import toast from 'react-hot-toast'
@@ -22,21 +22,74 @@ export default function ProductModal({ product, onClose, onSaved }: Props) {
   const [imageFile, setImageFile] = useState<File | null>(null)
   const [preview, setPreview] = useState<string>(product?.image_url || '')
   const [loading, setLoading] = useState(false)
+  const [isDragOver, setIsDragOver] = useState(false)
   const fileRef = useRef<HTMLInputElement>(null)
+  const dropRef = useRef<HTMLDivElement>(null)
 
   useEffect(() => {
     categoriesApi.list().then((res) => setCategories(res.data)).catch(() => {})
   }, [])
 
-  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
-    setForm((prev) => ({ ...prev, [field]: e.target.value }))
+  const setFile = useCallback((file: File) => {
+    if (!file.type.startsWith('image/')) {
+      toast.error('Faqat rasm fayllari qabul qilinadi')
+      return
+    }
+    setImageFile(file)
+    setPreview(URL.createObjectURL(file))
+  }, [])
 
   const handleImage = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]
     if (!file) return
-    setImageFile(file)
-    setPreview(URL.createObjectURL(file))
+    setFile(file)
   }
+
+  // Drag and drop
+  const handleDragOver = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(true)
+  }
+
+  const handleDragLeave = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+  }
+
+  const handleDrop = (e: React.DragEvent) => {
+    e.preventDefault()
+    e.stopPropagation()
+    setIsDragOver(false)
+    const file = e.dataTransfer.files?.[0]
+    if (file) setFile(file)
+  }
+
+  // Paste from clipboard
+  useEffect(() => {
+    const handlePaste = (e: ClipboardEvent) => {
+      const items = e.clipboardData?.items
+      if (!items) return
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        if (item.type.startsWith('image/')) {
+          e.preventDefault()
+          const file = item.getAsFile()
+          if (file) setFile(file)
+          break
+        }
+      }
+    }
+    const el = dropRef.current
+    if (el) {
+      el.addEventListener('paste', handlePaste)
+      return () => el.removeEventListener('paste', handlePaste)
+    }
+  }, [setFile])
+
+  const set = (field: string) => (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) =>
+    setForm((prev) => ({ ...prev, [field]: e.target.value }))
 
   const handleSubmit = async (e: FormEvent) => {
     e.preventDefault()
@@ -77,16 +130,33 @@ export default function ProductModal({ product, onClose, onSaved }: Props) {
 
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           <div
+            ref={dropRef}
+            tabIndex={0}
             onClick={() => fileRef.current?.click()}
-            className="border-2 border-dashed border-border rounded-xl h-36 flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors overflow-hidden relative"
+            onDragOver={handleDragOver}
+            onDragLeave={handleDragLeave}
+            onDrop={handleDrop}
+            className={`border-2 border-dashed rounded-xl h-36 flex flex-col items-center justify-center cursor-pointer transition-colors overflow-hidden relative outline-none ${
+              isDragOver
+                ? 'border-primary bg-primary/5'
+                : 'border-border hover:border-primary'
+            }`}
           >
             {preview ? (
               <img src={preview} alt="preview" className="w-full h-full object-cover absolute inset-0" />
             ) : (
-              <>
-                <Upload size={24} className="text-muted mb-2" />
-                <p className="text-sm text-muted">Rasm yuklash uchun bosing</p>
-              </>
+              <div className="flex flex-col items-center gap-1.5">
+                <Upload size={24} className="text-muted" />
+                <p className="text-sm text-muted font-medium">Rasm yuklash uchun bosing</p>
+                <div className="flex items-center gap-3 mt-1">
+                  <span className="flex items-center gap-1 text-[10px] text-muted">
+                    <ExternalLink size={10} /> Drag & Drop
+                  </span>
+                  <span className="flex items-center gap-1 text-[10px] text-muted">
+                    <Clipboard size={10} /> Ctrl+V
+                  </span>
+                </div>
+              </div>
             )}
             <input ref={fileRef} type="file" accept="image/*" onChange={handleImage} className="hidden" />
           </div>

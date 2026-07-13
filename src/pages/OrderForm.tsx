@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react'
+import { useState, useEffect, useRef } from 'react'
 import { useNavigate, useParams } from 'react-router-dom'
 import { Plus, Trash2, FileSpreadsheet, FileText, Save, ArrowLeft, Package, Layers, Share2 } from 'lucide-react'
 import SpeechInput from '../components/SpeechInput'
@@ -45,6 +45,8 @@ export default function OrderForm() {
   const [orderId, setOrderId] = useState<number | null>(null)
   const [pickerIndex, setPickerIndex] = useState(-1)
   const [bulkPickerOpen, setBulkPickerOpen] = useState(false)
+  const fileInputRef = useRef<HTMLInputElement>(null)
+  const [pendingImageIndex, setPendingImageIndex] = useState(-1)
   const [exportProgress, setExportProgress] = useState<{ type: string; pct: number } | null>(null)
 
   useEffect(() => {
@@ -365,6 +367,10 @@ export default function OrderForm() {
                   onUpdate={updateItem}
                   onRemove={removeRow}
                   onPickProduct={() => setPickerIndex(index)}
+                  onEditImage={() => {
+                    setPendingImageIndex(index)
+                    fileInputRef.current?.click()
+                  }}
                 />
               ))}
             </tbody>
@@ -427,6 +433,25 @@ export default function OrderForm() {
           onClose={() => setBulkPickerOpen(false)}
         />
       )}
+
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/*"
+        className="hidden"
+        onChange={(e) => {
+          const file = e.target.files?.[0]
+          if (!file || pendingImageIndex < 0) return
+          const reader = new FileReader()
+          reader.onload = (ev) => {
+            const dataUrl = ev.target?.result as string
+            updateItem(pendingImageIndex, 'image_url', dataUrl)
+            setPendingImageIndex(-1)
+          }
+          reader.readAsDataURL(file)
+          e.target.value = ''
+        }}
+      />
     </div>
   )
 }
@@ -438,21 +463,29 @@ interface RowProps {
   onUpdate: (index: number, field: keyof OrderItem, value: any) => void
   onRemove: (index: number) => void
   onPickProduct: () => void
+  onEditImage: () => void
 }
 
-function OrderRow({ index, item, totals, onUpdate, onRemove, onPickProduct }: RowProps) {
+function OrderRow({ index, item, totals, onUpdate, onRemove, onPickProduct, onEditImage }: RowProps) {
   const inputClass = "w-full px-2 py-1.5 text-sm border border-transparent rounded focus:outline-none focus:border-primary focus:bg-white bg-transparent text-center"
   const tdClass = "border-r border-border last:border-r-0 align-middle"
 
   return (
     <tr className="border-b border-border hover:bg-steel-light/50">
-      <td className={`${tdClass} px-3 py-2 text-center text-sm text-muted font-medium`}>{index + 1}</td>
+      <td className={`${tdClass} px-3 py-2 text-center text-sm`}>
+        <button
+          onClick={onPickProduct}
+          className="w-full text-center font-medium text-muted hover:text-primary transition-colors"
+        >
+          {item.name ? index + 1 : '+'}
+        </button>
+      </td>
 
       <td className={`${tdClass} px-2 py-2`}>
         <div className="w-[80px] mx-auto">
           <div
             className="w-[80px] h-[60px] border border-dashed border-border rounded flex items-center justify-center cursor-pointer overflow-hidden hover:border-primary transition-colors"
-            onClick={onPickProduct}
+            onClick={onEditImage}
           >
             {item.image_url ? (
               <img src={item.image_url} alt={item.name} className="w-full h-full object-cover" />

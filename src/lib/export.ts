@@ -2,6 +2,7 @@ import ExcelJS from 'exceljs'
 import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import { OrderItem } from '../types'
+import './NotoSans-VariableFont_wdth,wght-normal.js'
 
 function fmt(n: number | string) {
   return Number(n).toLocaleString('ru-RU')
@@ -30,8 +31,11 @@ function getTotals(items: OrderItem[]) {
   const totalSum = items.reduce((a, item) => a + (Number(item.price) || 0) * (Number(item.quantity) || 0), 0)
   const totalVat = Math.round(totalSum * 12 / 100)
   const grandTotal = totalSum + totalVat
-  return { totalSum, totalVat, grandTotal }
+  const totalQty = items.reduce((a, item) => a + (Number(item.quantity) || 0), 0)
+  return { totalSum, totalVat, grandTotal, totalQty }
 }
+
+const FONT = 'NotoSans-VariableFont_wdth,wght'
 
 export async function exportExcel(
   orderId: number, orderDate: string, clientName: string, clientPhone: string,
@@ -172,42 +176,29 @@ export async function exportExcel(
 
   onProgress?.(60)
 
-  // Totals
-  const { totalSum, totalVat, grandTotal } = getTotals(items)
+  // Totals row
+  const { totalSum, totalVat, grandTotal, totalQty } = getTotals(items)
   const lastDataRow = 3 + items.length
+  const totalRow = ws.getRow(lastDataRow + 1)
+  totalRow.height = 22
 
-  const totalsData: [string, number][] = [
-    ['Итого:', totalSum],
-    ['НДС 12%:', totalVat],
-    ['Итого с НДС:', grandTotal],
-  ]
+  for (let c = 1; c <= 10; c++) {
+    totalRow.getCell(c).border = thinBorder
+  }
+  ws.mergeCells(`A${lastDataRow + 1}:F${lastDataRow + 1}`)
+  const labelCell = totalRow.getCell(1)
+  labelCell.value = 'Итого:'
+  labelCell.font = { name: 'Times New Roman', bold: true, size: 11 }
+  labelCell.alignment = { vertical: 'middle', horizontal: 'right' }
 
-  totalsData.forEach(([label, val], i) => {
-    const r = lastDataRow + 1 + i
-    const row = ws.getRow(r)
-    row.height = 20
-
-    ws.mergeCells(r, 1, r, 7)
-    const lc = row.getCell(1)
-    lc.value = label
-    lc.font = { name: 'Times New Roman', bold: true, size: 11 }
-    lc.alignment = { vertical: 'middle', horizontal: 'right' }
-    lc.border = thinBorder
-
-    const vc = row.getCell(8)
-    vc.value = val
-    vc.numFmt = '#,##0'
-    vc.font = { name: 'Times New Roman', bold: true, size: 11 }
-    vc.alignment = center
-    vc.border = thinBorder
-
-    for (let c = 9; c <= 10; c++) {
-      row.getCell(c).border = thinBorder
-    }
-    // Also border unmerged cells
-    for (let c = 1; c <= 10; c++) {
-      row.getCell(c).border = thinBorder
-    }
+  const totalCols = [7, 8, 9, 10]
+  const totalVals = [totalQty, totalSum, totalVat, grandTotal]
+  totalCols.forEach((colNum, i) => {
+    const cell = totalRow.getCell(colNum)
+    cell.value = totalVals[i]
+    cell.numFmt = '#,##0'
+    cell.font = { name: 'Times New Roman', bold: true, size: 11 }
+    cell.alignment = center
   })
 
   onProgress?.(80)
@@ -233,8 +224,10 @@ export async function exportPdf(
 ) {
   const doc = new jsPDF('l', 'mm', 'a4')
 
+  onProgress?.(10)
+
   doc.setFontSize(11)
-  doc.setFont('helvetica', 'bold')
+  doc.setFont(FONT, 'bold')
   doc.text(`Заказчик: ${clientName}   Tel: ${clientPhone}`, 14, 20)
   doc.text(`Дата заявки: ${orderDate}`, 14, 28)
 
@@ -275,19 +268,21 @@ export async function exportPdf(
     ]
   })
 
-  const { totalSum, totalVat, grandTotal } = getTotals(items)
+  const { totalSum, totalVat, grandTotal, totalQty } = getTotals(items)
 
   autoTable(doc, {
     startY: 35,
     head: [['№', 'Наименование', 'Вид', 'Габариты', 'Краткая характеристика',
             'Стоимость', 'Кол.во', 'Сумма', 'НДС 12%', 'Сумма с НДС']],
-    body: [
-      ...rows,
-    ],
+    body: rows,
     foot: [
-      [{ content: 'Итого:', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } }, '', fmt(totalSum), '', ''],
-      [{ content: 'НДС 12%:', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } }, '', fmt(totalVat), '', ''],
-      [{ content: 'Итого с НДС:', colSpan: 7, styles: { halign: 'right', fontStyle: 'bold' } }, '', fmt(grandTotal), '', ''],
+      [
+        { content: 'Итого:', colSpan: 6, styles: { halign: 'right', fontStyle: 'bold' } },
+        String(totalQty),
+        fmt(totalSum),
+        fmt(totalVat),
+        fmt(grandTotal),
+      ],
     ],
     theme: 'grid',
     headStyles: {
@@ -296,9 +291,10 @@ export async function exportPdf(
       fontStyle: 'bold',
       fontSize: 8,
       halign: 'center',
+      font: FONT,
     },
-    bodyStyles: { fontSize: 8, halign: 'center' },
-    footStyles: { fontSize: 8, halign: 'center' },
+    bodyStyles: { fontSize: 8, halign: 'center', font: FONT },
+    footStyles: { fontSize: 8, halign: 'center', font: FONT, fontStyle: 'bold' },
     columnStyles: {
       0: { cellWidth: 10 },
       1: { cellWidth: 50 },
@@ -313,7 +309,6 @@ export async function exportPdf(
     },
     margin: { left: 8, right: 8 },
     didDrawCell: (data: any) => {
-      // Place images in column index 2 (Вид) for data rows
       if (data.section === 'body' && data.column.index === 2) {
         const rowIndex = data.row.index
         const imgData = imageMap.get(rowIndex)
